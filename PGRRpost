@@ -1,0 +1,5 @@
+from __future__ import absolute_import, division, print_function
+from array import array
+import numpy as np
+
+year, month, time, rainrate, pg = np.genfromtxt(processeddata/PGdata.csv, dtype=float, delimiter=',',  unpack=True)

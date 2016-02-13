@@ -1,0 +1,7 @@
+Versions Info.
+
+Version 4:
+-Correction of the data fully
+-Equal bin counts -> variable bin sizes (linear)
+-Uses day events rather than rain events
+-Uses day events with rain less than 50mm/hr

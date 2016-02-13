@@ -1,0 +1,210 @@
+############################################################################
+# Project: The Lenard effect of preciptation at the RUAO,
+# Title: Ensemble processing of the PG, Time and Rain Rate data,
+# Author: James Gilmore,
+# Email: james.gilmore@pgr.reading.ac.uk.
+# Version: 1.0.8
+# Date: 18/01/16
+# Status: Operational (Basic)
+############################################################################
+
+#Initialising the python script
+from __future__ import absolute_import, division, print_function
+from scipy import stats, interpolate
+from lowess import lowess
+from array import array
+import sys,csv
+import numpy as np
+import matplotlib.pyplot as plt
+execfile("externals.py")
+np.set_printoptions(threshold='nan')
+
+y = "y"
+n = "n"
+
+#User input for the further processing of the PGRR data
+print("####################################################################")
+print("The Lenard effect of preciptation at the RUAO. Using the processed ")
+print("data collected from the PGRainRate.py script the average for each ")
+print("rain rate can be found.")
+print("####################################################################\n")
+selectcase = input("Please select the averaging method: Type '1' for Mean, Type '2' for Median: ")
+loop = str(input('Do you want to loop over many bins? y/n: '))
+if loop == "n":
+	bincount = input("How many bins for the averaging would you like (recommended = 100): ")
+	loop = 1
+elif loop == "y":
+	bincount = 30
+	loop = 10
+
+
+#Import the processed data for the significantly charged rain. See PGRainRate.py
+year, month, time, rainrate, pg = np.genfromtxt('processeddata/PGdata.csv', dtype=float, delimiter=',',  unpack=True)
+
+#Remove zero values from processed data. Used "year" as criteria as theres a chance of real
+#zero values cropping up in other columns.
+Month = month.copy()[year.copy()!=0]
+Time = time.copy()[year.copy()!=0]
+Rainrate = rainrate.copy()[year.copy()!=0]
+PG = pg.copy()[year.copy()!=0]
+Year = year.copy()[year.copy()!=0]
+
+slope = np.zeros(int(loop))
+intercept = np.zeros(int(loop))
+r_value = np.zeros(int(loop))
+p_value = np.zeros(int(loop))
+std_err =  np.zeros(int(loop))
+lowessval = np.zeros([int(loop),bincount+30*loop])
+
+PGRR = np.asarray(zip(Rainrate, PG))
+
+PGRRsort = PGRR[np.lexsort((PGRR[:, 1], PGRR[:, 0]))]
+
+print("mean = ", np.mean(PGRRsort[:, 1]), " median = ", np.median(PGRRsort[:, 1]))
+
+PGsort = PGRRsort[:,1]
+RRsort = PGRRsort[:,0]
+
+for k in xrange(loop):
+	#Initalise the matrices and vectors
+	RainRateBin = np.zeros((bincount+30*k)-1)
+	RainRateBinLimit = np.zeros(bincount+30*(k))
+	TimeTipBin = np.zeros(bincount+30*(k))
+	PGTipBin = np.zeros(bincount+30*(k))
+	TotalBin = np.zeros(bincount+30*(k))
+	PGTipBinMedian = np.zeros([bincount+30*(k),len(Year)])
+	#PGTipBinMedianConst = np.zeros([bincount+30*k, len(PGRR)/(bincount+30*k)]) probs dont need it now (for case ==3)
+	PGTipPosition = np.zeros(bincount+30*(k))
+	PGTipBinMedianFinal = np.zeros(bincount+30*(k))
+	eps = sys.float_info.epsilon
+
+	#Define the Rain Rate for each bin with the centred values determined as well.
+	for i in range(bincount+30*(k)):
+		RainRateBinLimit[i] = i*5/(bincount+30*(k))
+	for i in range((bincount+30*(k))-1):
+		RainRateBin[i] = 0.5*(RainRateBinLimit[i+1]-RainRateBinLimit[i])
+	
+	if selectcase == 1:
+		############################################################################
+		#Define the mean (ensemble) PG and Tip Times for the statistically significant data.
+		#Equal Bin Spacing, Variable Bin Counts
+		for j in range(len(Year)):
+			#print("PG[j]", PG[j])
+			for i in range(1,bincount+30*(k)):
+				if (Rainrate[j] < i*5/(bincount+30*(k)) and Rainrate[j] > (i-1)*5/(bincount+30*(k))):
+					PGTipBin[i] += PG[j]
+					TimeTipBin[i] += Time[j]
+					TotalBin[i] += 1
+		PGTipBinned = PGTipBin.copy()/(TotalBin.copy()+eps)
+		TimeTipBinned = TimeTipBin.copy()/(TotalBin.copy()+eps)
+
+		#Removes NaN values
+		PGTipBinned = [0 if np.isnan(x) else x for x in PGTipBinned]
+		TimeTipBinned = [0 if np.isnan(x) else x for x in TimeTipBinned]
+	
+		#Select values for plotting
+		yvalue = np.asarray(PGTipBinned)
+		amethod = "Mean"
+	
+		############################################################################
+
+	elif selectcase == 2:	
+		############################################################################
+		#Define the median PG and Tip Times for the statistically significant data.
+		#Equal Bin Spacing, Variable Bin Counts
+
+		for j in range(len(Year)):
+			for i in range(1,bincount+30*(k)):
+				if (Rainrate[j] < i*5/(bincount+30*(k)) and Rainrate[j] > (i-1)*5/(bincount+30*(k))):
+					PGTipBinMedian[i,PGTipPosition[i]] = PG[j]
+					PGTipPosition[i]+=1
+		for i in range(bincount+30*(k)):
+			PGTipBinMedianFinal[i] = np.median(PGTipBinMedian[i,:].copy()[PGTipBinMedian[i,:].copy()!=0])		
+			PGTipBinMedianFinal[np.isnan(PGTipBinMedianFinal)] = 0
+		
+		#Select values for plotting
+		yvalue = np.asarray(PGTipBinMedianFinal)
+		amethod = "Median"
+		print("PGTipBinMedian", PGTipBinMedianFinal)
+
+		############################################################################
+	
+	elif selectcase == 3:
+		############################################################################
+		#Define the mean (ensemble) PG and Tip Times for the statistically significant data.
+		#Variable Bin Spacing, Equal Bin Counts
+		
+		PGTipBinned = np.zeros(bincount+30*(k))
+		PGTipBinned[0] = np.mean(PGRRsort[0:(len(PGRR)/(bincount+30*k)), 1].copy())
+		for i in range(1,(bincount+30*(k))-1):
+			PGTipBinned[i] = np.mean(PGRRsort[(len(PGRR)/(bincount+30*k)*i):(len(PGRR)/(bincount+30*k)*(i+1)), 1].copy())
+			PGTipBinned[np.isnan(PGTipBinned)] = 0
+
+		#Select values for plotting
+		yvalue = np.asarray(PGTipBinned)
+		amethod = "Mean"
+		#print("PGTipBinned", PGTipBinned)
+
+		#Define the Rain Rate for each bin with the centred values determined as well.
+		RainRateBinLimit[0] = 0.5*PGRRsort[(len(PGRR)/(bincount+30*k)), 0]
+		for i in range(1,bincount+30*(k)):				
+			RainRateBinLimit[i] = 0.5*(PGRRsort[(len(PGRR)/(bincount+30*k)*i), 0]-PGRRsort[(len(PGRR)/(bincount+30*k)*(i-1)), 0])+PGRRsort[(len(PGRR)/(bincount+30*k)*(i-1)), 0]
+		print(RainRateBinLimit)
+		############################################################################
+
+	elif selectcase == 4:	
+		############################################################################
+		#Define the median PG and Tip Times for the statistically significant data.
+		#Variable Bin Spacing, Equal Bin Counts
+		PGTipBinMedianFinal[0] = np.median(PGRRsort[0:(len(PGRR)/(bincount+30*k)), 1].copy())
+		for i in range(1,(bincount+30*(k))-1):
+			PGTipBinMedianFinal[i] = np.median(PGRRsort[(len(PGRR)/(bincount+30*k)*i):(len(PGRR)/(bincount+30*k)*(i+1)), 1].copy())
+			PGTipBinMedianFinal[np.isnan(PGTipBinMedianFinal)] = 0
+
+		#Select values for plotting
+		yvalue = np.asarray(PGTipBinMedianFinal)
+		amethod = "Median"
+		print("PGTipBinMedian", np.sort(PGTipBinMedianFinal))
+
+		#Define the Rain Rate for each bin with the centred values determined as well.
+		RainRateBinLimit[0] = 0.5*PGRRsort[(len(PGRR)/(bincount+30*k)), 0]
+		for i in range(1,bincount+30*(k)):				
+			RainRateBinLimit[i] = 0.5*(PGRRsort[(len(PGRR)/(bincount+30*k)*i), 0]-PGRRsort[(len(PGRR)/(bincount+30*k)*(i-1)), 0])+PGRRsort[(len(PGRR)/(bincount+30*k)*(i-1)), 0]
+		print(RainRateBinLimit)
+		############################################################################
+	
+	else:
+		sys.exit("Please select either the Mean (1) or Median (2) case.")
+	
+	print("Bin Counts", PGTipPosition)
+	
+	#Calculation of the linear regression model along with statistical parameters.
+	slope[k], intercept[k], r_value[k], p_value[k], std_err[k] = stats.linregress(RainRateBinLimit, yvalue)
+	#print("RainRateBinLimit", RainRateBinLimit)
+	#print("yvalue", yvalue)
+	for m in xrange(len(lowess(RainRateBinLimit+eps, yvalue+eps, 1/2))):
+		lowessval[k,m] = lowess(RainRateBinLimit+eps, yvalue+eps, 1/2)[m]
+
+if loop == 10:
+	PGRainEnsembleMulti(np.max(RainRateBinLimit)+0.2, np.max(yvalue)+0.2, "PGEnsembleMulti" + str(amethod) + str(bincount), "png", RainRateBinLimit, yvalue, lowessval)
+	
+print(slope, intercept, r_value, p_value, std_err)
+
+print("P-Value: ", p_value)
+print("R^2 Value: ", r_value**2)
+print("Standard Error: ", std_err)
+
+#print(lowessval[0,:])
+
+PGEnsembleData = zip(RainRateBinLimit, PGTipBinMedianFinal)
+with open("processeddata/PGEnsembleData.csv", "wb") as output:
+		writer = csv.writer(output, lineterminator='\n')
+		writer.writerows(PGEnsembleData)
+		
+PGEnsembleLowess = zip(RainRateBinLimit, lowessval[0,:])
+with open("processeddata/PGEnsembleLowess.csv", "wb") as output:
+		writer = csv.writer(output, lineterminator='\n')
+		writer.writerows(PGEnsembleLowess)
+
+#Plot the ensemble PG against Rain Rate. See external.py for the source function.
+PGRainSlim(np.max(RainRateBinLimit)+0.2, np.max(yvalue)+0.2, "PGEnsemble" + str(amethod) + str(bincount), "png", RainRateBinLimit, yvalue, slope, intercept)

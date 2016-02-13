@@ -1,0 +1,5 @@
+Guide:
+PGdatav1 - Contains 2009 PG data values
+PGdatav2 - Contains 2006-2013 PG data values (v.1.0.5)
+PGdatav3 - Same as above but removed the p<0.05 criteria and fix an issue with double scalars (v.1.0.7)
+PGdatav4 - Fixed all the errors in the data (time skips etc.)
