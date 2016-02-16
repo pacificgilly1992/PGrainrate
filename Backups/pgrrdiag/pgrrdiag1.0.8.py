@@ -16,63 +16,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats, interpolate
 import sys, os
-import re
 
 execfile("externals.py")
 
-def PGrainrate(file="RUSOdata/raw/2009M062.rax", bin=100, filelog=None):
+def PGrainrate(file="RUSOdata/raw/2009M062.rax", bin=100):
 
-	#Load Data and Error Log files
-	while True:
-		try:
-			time, rain, pg = np.genfromtxt(file, dtype=float, delimiter=',', usecols=(3, 26, 32),  unpack=True, skiprows=1)
-			end=1
-			break
-		except:
-			time, rain, pg = np.genfromtxt(file, dtype=float, delimiter=',', usecols=(3, 26, 32),  unpack=True, skiprows=2)
-			end=2
-			break
-	while True:
-		try:
-			log = np.genfromtxt(filelog, dtype=str, delimiter=',',  unpack=True)
-			break
-	
-		except:
-			log=0
-			break
-	cal_year,cal_day,cal_Tipoffset,cal_Tipmultipler,cal_PGoffset,cal_PGmultipler = np.genfromtxt('RUAOdata/PGRRCalibration.ini', dtype=float, delimiter=',',  unpack=True, skiprows=1)
-
-	######################################################################
-	#Quality Control Section
-	#PART 1: Fixes all the clock skips and jumps recoreded in the log files
-	
-	if log!=0: #for any day without an associated log file this will stop errors from cropping up and removing the particular data from processing.
-		logged = np.zeros([len(log)-end,7])
-		for i in xrange(len(log)-end):
-			if log[i][:15] != "*** WARNING ***":
-				bob = [int(s) for s in re.findall(r'[-\d]+', log[i])]
-				logged[i,6]=len(log[i])
-				for j in xrange(len(bob)):
-					logged[i,j]=bob[j]
-					bob[j]=0
-
-		for i in xrange(len(logged)-1):
-			time[logged[i,0]-end] += logged[i,1]*(1/3600)
-
-	#PART 2: Find the correct calibration values for the data
-
-	for i in xrange(len(cal_year)-1):
-		if (float(os.path.basename(file)[:-8]+"."+os.path.basename(file)[5:-4])>(cal_year[i]+cal_day[i]/1000) and float(os.path.basename(file)[:-8]+"."+os.path.basename(file)[5:-4])<(cal_year[i+1]+cal_day[i+1]/1000)):
-			cal_no = i
-	
-	######################################################################
-
+	time, rain, pg = np.genfromtxt(file, dtype=float, delimiter=',', usecols=(3, 26, 32),  unpack=True, skiprows=2)
+ 
 	timekeep = time.copy()
-	
-	#Calibrate the PG data from V to V/m with correct values (hence cal_no)
 
-	PG=(pg.copy()-cal_PGoffset[cal_no])/cal_PGmultipler[cal_no]
-	
+	#Calibrate the PG data from V to V/m
+
+	PG=(pg.copy()-0.00903)/0.00463
+
 	PGTime = np.asarray(zip(timekeep, PG))
 
 
@@ -80,13 +36,13 @@ def PGrainrate(file="RUSOdata/raw/2009M062.rax", bin=100, filelog=None):
 
 	Rain = np.zeros_like(time)
 
-	#time[0]=time[-1]=0	# Set the first and last value of the time series equal to 0	
+	time[0]=time[-1]=0	# Set the first and last value of the time series equal to 0	
 	raintot=0   		# Number of tip buckets has occurred in a day
 
 	#Buffer tip times
 
 	for i in range(len(time)-1):
-		if rain[i+1]-rain[i]<(0.2*cal_Tipmultipler[cal_no]):
+		if rain[i+1]-rain[i]<=0.03:
 			time[i]=0
 			Rain[i]=0
 		else:
@@ -116,10 +72,10 @@ def PGrainrate(file="RUSOdata/raw/2009M062.rax", bin=100, filelog=None):
 	#Determine rainfall rates less than 5mm/hr and relate to relevant time
 
 	for i in range(len(RainRate)):
-		if not RainRate[i]<=50:
+		if not RainRate[i]<=5:
 			TimeTip[i]=-1
 
-	RainRate5mm = RainRate[RainRate>0]
+	RainRate5mm = RainRate[(RainRate<=5) & (RainRate>0)]
 	TimeTip5mm = TimeTip[TimeTip>0]
 	
 	if len(RainRate5mm) < 1:
@@ -127,9 +83,9 @@ def PGrainrate(file="RUSOdata/raw/2009M062.rax", bin=100, filelog=None):
 
 	PGtip = np.zeros_like(TimeTip5mm)
 
-	for i in range(len(timerain)-1):
+	for i in range(len(TimeTip5mm)-1):
 
-		PGtemp = PG[(timerain[i] <= timekeep) & (timekeep < timerain[i+1])]
+		PGtemp = PG[(TimeTip5mm[i] <= timekeep) & (timekeep < TimeTip5mm[i+1])]
 		PGtip[i] = np.median(PGtemp)
 
 	#Fit a linear regression model for the PG against rain rate and return some statistics
@@ -137,12 +93,12 @@ def PGrainrate(file="RUSOdata/raw/2009M062.rax", bin=100, filelog=None):
 	"where more rigorous testing of the rain rate data needs to be done"
 	
 	eps = sys.float_info.epsilon
-	#RRL = RainRate5mm[RainRate5mm<0.5*np.max(RainRate5mm)]/(PGtip[RainRate5mm<0.5*np.max(RainRate5mm)]+eps)
-	#RRH = RainRate5mm[RainRate5mm>=0.5*np.max(RainRate5mm)]/(PGtip[RainRate5mm>=0.5*np.max(RainRate5mm)]+eps)
+	RRL = RainRate5mm[RainRate5mm<0.5*np.max(RainRate5mm)]/(PGtip[RainRate5mm<0.5*np.max(RainRate5mm)]+eps)
+	RRH = RainRate5mm[RainRate5mm>=0.5*np.max(RainRate5mm)]/(PGtip[RainRate5mm>=0.5*np.max(RainRate5mm)]+eps)
 
-	#statistic, pvalue = stats.mannwhitneyu(RRL, RRH)
-	pvalue=1
-	#print("Mann: ",pvalue)
+	statistic, pvalue = stats.mannwhitneyu(RRL, RRH)
+
+	print("Mann: ",pvalue)
 
 	slope, intercept, r_value, p_value, std_err = stats.linregress(RainRate5mm, PGtip)
 	pearson_cor = stats.pearsonr(TimeTip5mm,RainRate5mm)
@@ -154,7 +110,7 @@ def PGrainrate(file="RUSOdata/raw/2009M062.rax", bin=100, filelog=None):
 	#	return 0,0,0,0,0,0,0,0,0,[(0,0,0,0,0)]
 	
 	#Plot the Rate Rate against PG once passed all basic quality checks
-	print("Printing :)")	
+	print("Beforeprinting")	
 	PGRainFull(np.max(RainRate5mm)+0.2, np.max(PGtip)+100, os.path.basename(file)[:-4], "png" , RainRate5mm, TimeTip5mm, timekeep, PG, PGtip, slope, intercept, p_value, r_value, pearson_cor, std_err, pvalue)
 	
 	#Now place each value of the PG into specific Rain rate ranges or 'bins'. This is
@@ -175,8 +131,8 @@ def PGrainrate(file="RUSOdata/raw/2009M062.rax", bin=100, filelog=None):
 				TimeTipBin[i] += TimeTip5mm[j]
 				TotalBin[i] += 1
 
-	PGTipBinned = PGTipBin.copy()/(TotalBin.copy()+eps)
-	TimeTipBinned = TimeTipBin.copy()/(TotalBin.copy()+eps)
+	PGTipBinned = PGTipBin.copy()/(TotalBin.copy())
+	TimeTipBinned = TimeTipBin.copy()/(TotalBin.copy())
 	
 	#Removes NaN values
 	PGTipBinned = [0 if np.isnan(x) else x for x in PGTipBinned]
@@ -189,7 +145,7 @@ def PGrainrate(file="RUSOdata/raw/2009M062.rax", bin=100, filelog=None):
 		Year[i] = os.path.basename(file)[:-8]
 		Day[i] = os.path.basename(file)[5:-4]
 	
-	day = zip(Year, Day, TimeTip5mm, RainRate5mm, PGtip, timerain)
+	day = zip(Year, Day, TimeTip5mm, RainRate5mm, PGtip)
 	#Return from the definition with a barrage of data
 
 	return slope, intercept, r_value, p_value, std_err, pearson_cor, RainRateBin, TimeTipBinned, PGTipBin, day

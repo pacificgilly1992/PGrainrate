@@ -3,14 +3,11 @@
 # Title: Ensemble processing of the PG, Time and Rain Rate data,
 # Author: James Gilmore,
 # Email: james.gilmore@pgr.reading.ac.uk.
-# Version: 1.1.1
-# Date: 16/02/16
+# Version: 1.1.0
+# Date: 10/02/16
 # Status: Operational
-# Change: Minor: Updated Folder Locators. MAJOR: Imports the log files and 
-# sorts files for each specific day (i.e. not all days have associated log files!)
-# TO-DO: Clean this file up code wise and self wise. 
-#		 Update for rain events rather than day events!
 ############################################################################
+
 #Initialising the python script
 from __future__ import absolute_import, division, print_function
 from array import array
@@ -23,8 +20,14 @@ execfile("pgrrdiag.py")
 ############################################################################
 #Import the data files using a search criteria method
 
+#pgfile=glob.glob('RUSOdata/*/*.rax') #UNIX system (Personal)
+#pgfilelog=glob.glob('RUSOdata/*/*.rpt') #UNIX system (Personal)
+
 pgfile=glob.glob('../../../../net/vina1s/vol/data1_s/meteorology_2/RUAOData/METFiDAS/data/raw/met/1sec/*/*.rax')
 pgfilelog=glob.glob('../../../../net/vina1s/vol/data1_s/meteorology_2/RUAOData/METFiDAS/data/raw/met/1sec/*/*.rpt')
+
+#pgfile=glob.glob('X:/RUAOData/METFiDAS/data/raw/met/1sec/*/*.rax')
+#pgfile=glob.glob('C:/Users/james/Documents/Education/PhD/1sec/*/*.rax')
 
 ############################################################################
 #Correct the positioning of the log files. Not all days have log files!!!
@@ -65,6 +68,7 @@ y=yy=n=nn=0
 np.set_printoptions(threshold='nan')
 
 tstart = time.time()
+
 
 try:
 	for i in range(len(pgfile)):

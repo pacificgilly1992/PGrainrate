@@ -3,8 +3,8 @@
 # Title: Ensemble processing of the PG, Time and Rain Rate data,
 # Author: James Gilmore,
 # Email: james.gilmore@pgr.reading.ac.uk.
-# Version: 1.1.1
-# Date: 16/02/16
+# Version: 1.1.0
+# Date: 10/02/16
 # Status: Operational
 ############################################################################
 
@@ -108,7 +108,7 @@ def PGRainFull(xlimmax=None, ylimmax=None, outFile=None, fileformat=None, RainRa
 	plt.tight_layout(pad=0.4, w_pad=-0.5, h_pad=0.5)
 
 
-	plt.savefig('Plots/new_v4/' + outFile + "." + fileformat)
+	plt.savefig('plots/new_v4/' + outFile + "." + fileformat)
 	plt.close(fig)
 
 	return
@@ -139,7 +139,7 @@ def PGRainSlim(xlimmax=None, ylimmax=None, outFile=None, fileformat=None, RainRa
 	y0, y1 = pgrain.get_ylim()
 	pgrain.set_aspect(np.abs((x1-x0)/(y1-y0)))	
 
-	plt.savefig('Plots/Ensemble/' + outFile + "." + fileformat)
+	plt.savefig('plots/Ensemble/' + outFile + "." + fileformat)
 	plt.close(fig)
 	
 def PGRainEnsembleMulti(xlimmax=None, ylimmax=None, outFile=None, fileformat=None, RainRate5mm=None, PGtip=None, lowessval=None):

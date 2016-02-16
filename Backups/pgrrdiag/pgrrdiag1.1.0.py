@@ -3,10 +3,10 @@
 # Title: Ensemble processing of the PG, Time and Rain Rate data,
 # Author: James Gilmore,
 # Email: james.gilmore@pgr.reading.ac.uk.
-# Version: 1.0.8
-# Date: 18/01/16
+# Version: 1.1.0
+# Date: 10/02/16
 # Status: Operational
-# Change: Removed P-Value significance factor as this might reduce ensemble predictions
+# Change: Added all the error checking procedures! We've got it ALL cover now! Happy Days!
 ############################################################################
 
 #Initialising the python script
